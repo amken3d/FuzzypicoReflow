@@ -6,8 +6,8 @@ Task list:
 - [x] Added Thermocouple linearization calculations (see: https://learn.adafruit.com/calibrating-sensors/maxim-31855-linearization)
 
 4 years later, some new tasks:
-- [ ] Python3....
-- [ ] move from pigpio to Adafruit CircuitPython for max31855 and GPIOs
+- [x] Python3....
+- [ ] move from pigpio to Adafruit Blinka/CircuitPython for max31855 and GPIOs
 - [ ] Implement a fuzzy control loop
 
 **In addition to the below instructiuons you need to install Adafruit's circuit python**

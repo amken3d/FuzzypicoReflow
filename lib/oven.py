@@ -4,22 +4,28 @@ import time
 import datetime
 import logging
 import json
+import adafruit_max31855
+try:
+    import digitalio
+    import board
+    board_available = True
+except:
+    print("Could not load Adafruit CircuitPython libraries")
+    board_available = False
+    sensor_available = False
 
 import config
 
 log = logging.getLogger(__name__)
 
 try:
-    if config.max31855 + config.max6675 + config.max31855spi > 1:
+    if config.max31855 + config.max6675 + config.Adafruit_CP_max31855 > 1:
         log.error("choose (only) one converter IC")
         exit()
     if config.max31855:
         from max31855 import MAX31855, MAX31855Error
         log.info("import MAX31855")
-    if config.max31855spi:
-        import Adafruit_GPIO.SPI as SPI
-        from max31855spi import MAX31855SPI, MAX31855SPIError
-        log.info("import MAX31855SPI")
+    if config.Adafruit_CP_max31855:
         spi_reserved_gpio = [7, 8, 9, 10, 11]
         if config.gpio_air in spi_reserved_gpio:
             raise Exception("gpio_air pin %s collides with SPI pins %s" % (config.gpio_air, spi_reserved_gpio))
@@ -32,43 +38,35 @@ try:
     if config.max6675:
         from max6675 import MAX6675, MAX6675Error
         log.info("import MAX6675")
-    sensor_available = True
+
 except ImportError:
     log.exception("Could not initialize temperature sensor, using dummy values!")
     sensor_available = False
 
 try:
-	import pigpio
+    gpio_heat = digitalio.DigitalInOut(config.CP_gpio_heat)
+    gpio_heat.direction = digitalio.Direction.OUTPUT
 
-	GPIO = pigpio.pi()
+    gpio_cool = digitalio.DigitalInOut(config.CP_gpio_cool)
+    gpio_cool.direction = digitalio.Direction.OUTPUT
 
-	if not GPIO.connected:
-		msg = "Could not initialize GPIOs, oven operation will only be simulated!"
-		log.warning(msg)
-		gpio_available = False
-#    	exit(0)
-	else:
-		GPIO.set_mode(config.gpio_heat,pigpio.OUTPUT)
-	    	GPIO.set_mode(config.gpio_cool, pigpio.OUTPUT)
-		GPIO.set_mode(config.gpio_air, pigpio.OUTPUT)
-		GPIO.set_mode(config.gpio_door, pigpio.INPUT)
-		GPIO.set_pull_up_down(config.gpio_door, pigpio.PUD_UP)
+    gpio_air = digitalio.DigitalInOut(config.CP_gpio_air)
+    gpio_air.direction = digitalio.Direction.OUTPUT
 
-		gpio_available = True
-except ImportError:
+    gpio_door = digitalio.DigitalInOut(config.CP_gpio_door)
+    gpio_door.direction = digitalio.Direction.INPUT
+    gpio_door.pull = digitalio.Pull.UP
+
+    gpio_available = True
+except:
     msg = "Could not initialize GPIOs, oven operation will only be simulated!"
     log.warning(msg)
+    gpio_available = False
 
 
 
-# import 
-#RPi.GPIO as GPIO GPIO.setmode(GPIO.BCM) GPIO.setwarnings(False) 
-#GPIO.setup(config.gpio_heat, GPIO.OUT) GPIO.setup(config.gpio_cool, GPIO.OUT) 
-#GPIO.setup(config.gpio_air, GPIO.OUT) GPIO.setup(config.gpio_door, GPIO.IN, 
-#pull_up_down=GPIO.PUD_UP) log.warning(msg)# gpio_available = True except ImportError:
-#    gpio_available = False#    msg = "Could not initialize GPIOs, oven operation will only be simulated!"
-#    log.warning(msg)
-#    gpio_available = False
+
+
 
 class Oven (threading.Thread):
     STATE_IDLE = "IDLE"
@@ -88,6 +86,7 @@ class Oven (threading.Thread):
             self.temp_sensor = TempSensorSimulate(self,
                                                   self.time_step,
                                                   self.time_step)
+            self.simulate = True
         self.temp_sensor.start()
         self.start()
 
@@ -172,9 +171,12 @@ class Oven (threading.Thread):
                 if self.runtime >= self.totaltime:
                     self.reset()
 
-            
+
             if pid > 0:
-                time.sleep(self.time_step * (1 - pid))
+                if self.simulate:
+                    time.sleep(self.time_step)
+                else:
+                    time.sleep(self.time_step * (1 - pid))
             else:
                 time.sleep(self.time_step)
 
@@ -183,45 +185,41 @@ class Oven (threading.Thread):
             self.heat = 1.0
             if gpio_available:
                if config.heater_invert:
-                 GPIO.output(config.gpio_heat, GPIO.LOW)
+                 gpio_heat.value = False
                  time.sleep(self.time_step * value)
-                 GPIO.output(config.gpio_heat, GPIO.HIGH)   
+                 gpio_heat.value = True
                else:
-                 GPIO.output(config.gpio_heat, GPIO.HIGH)
-                 time.sleep(self.time_step * value)
-                 GPIO.output(config.gpio_heat, GPIO.LOW)   
+                   gpio_heat.value = True
+                   time.sleep(self.time_step * value)
+                   gpio_heat.value = False
 
         else:
             self.heat = 0.0
             if gpio_available:
                if config.heater_invert:
-                 GPIO.output(config.gpio_heat, GPIO.HIGH)
+                   gpio_heat.value = True
                else:
-                 GPIO.output(config.gpio_heat, GPIO.LOW)
+                   gpio_heat.value = False
 
     def set_cool(self, value):
         if value:
             self.cool = 1.0
             if gpio_available:
-#                GPIO.output(config.gpio_cool, GPIO.LOW)
-                GPIO.write(config.gpio_cool, 0)
+                gpio_cool.value = False
         else:
             self.cool = 0.0
             if gpio_available:
-#                GPIO.output(config.gpio_cool, GPIO.HIGH)
-                GPIO.write(config.gpio_cool, 1)
+                gpio_cool.value = True
 
     def set_air(self, value):
         if value:
             self.air = 1.0
             if gpio_available:
-#                GPIO.output(config.gpio_air, GPIO.LOW)
-                GPIO.write(config.gpio_air, 0)
+                gpio_air.value = False
         else:
             self.air = 0.0
             if gpio_available:
-#               GPIO.output(config.gpio_air, GPIO.HIGH)
-                GPIO.write(config.gpio_air, 1)
+                gpio_air.value = True
 
     def get_state(self):
         state = {
@@ -239,8 +237,7 @@ class Oven (threading.Thread):
 
     def get_door_state(self):
         if gpio_available:
-#            return "OPEN" if GPIO.input(config.gpio_door) else "CLOSED"
-            return "OPEN" if GPIO.read(config.gpio_door) else "CLOSED"
+            return "OPEN" if gpio_door.value else "CLOSED"
         else:
             return "UNKNOWN"
 
@@ -271,14 +268,20 @@ class TempSensorReal(TempSensor):
                                      config.spi_hw_channel,
                                      config.temp_scale)
 
-        if config.max31855spi:
-            log.info("init MAX31855-spi")
-            self.thermocouple = MAX31855SPI(spi_dev=SPI.SpiDev(port=0, device=config.spi_sensor_chip_id))
+        if config.Adafruit_CP_max31855:
+            if board_available :
+                log.info("init Adafruit CircuitPython MAX31855")
+                try:
+                    spi = board.SPI()
+                    cs = digitalio.DigitalInOut(board.D5)
+                    self.thermocouple = adafruit_max31855.MAX31855(spi, cs)
+                except Exception:
+                    log.exception("problem initializing MAX31855")
 
     def run(self):
         while True:
             try:
-                self.temperature = self.thermocouple.get()
+                self.temperature = self.thermocouple.temperature
             except Exception:
                 log.exception("problem reading temp")
             time.sleep(self.time_step)
@@ -367,7 +370,7 @@ class Profile():
             return False
 
     def get_target_temperature(self, time):
-        if time > self.get_duration():
+        if time >= self.get_duration():
             return 0
 
         (prev_point, next_point) = self.get_surrounding_points(time)

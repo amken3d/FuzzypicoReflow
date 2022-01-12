@@ -1,4 +1,10 @@
 import logging
+board_loaded = False
+try:
+    import board
+    board_loaded = True
+except:
+    print("config.py: Could not load Adafruit CircuitPython 'board' library")
 
 ########################################################################
 #
@@ -13,8 +19,8 @@ listening_ip = "0.0.0.0"
 listening_port = 8081
 
 ### Cost Estimate
-kwh_rate        = 0.26  # Rate in currency_type to calculate cost to run job
-currency_type   = "EUR"   # Currency Symbol to show when calculating cost to run job
+kwh_rate        = 0.55 # Rate in currency_type to calculate cost to run job
+currency_type   = "ILS"   # Currency Symbol to show when calculating cost to run job
 
 ########################################################################
 #
@@ -30,16 +36,24 @@ gpio_heat = 25  # Switches zero-cross solid-state-relay
 gpio_cool = 24  # Regulates PWM for 12V DC Blower
 gpio_air  = 23  # Switches 0-phase det. solid-state-relay
 
+if board_loaded :
+    CP_gpio_heat = board.D25  # Switches zero-cross solid-state-relay
+    CP_gpio_cool = board.D24  # Regulates PWM for 12V DC Blower
+    CP_gpio_air  = board.D23  # Switches 0-phase det. solid-state-relay
+
 heater_invert = 0 # switches the polarity of the heater control
 
 ### Inputs
 gpio_door = 18
+if board_loaded :
+    CP_gpio_door = board.D18
 
 ### Thermocouple Adapter selection:
 #   max31855 - bitbang SPI interface
 #   max31855spi - kernel SPI interface
 #   max6675 - bitbang SPI interface
-max31855 = 1
+Adafruit_CP_max31855 = 1
+max31855 = 0
 max6675 = 0
 max31855spi = 0 # if you use this one, you MUST reassign the default GPIO pins
 
@@ -57,9 +71,6 @@ spi_hw_channel = 0
 gpio_sensor_cs = 27
 gpio_sensor_clock = 22
 gpio_sensor_data = 17
-
-### Thermocouple SPI Connection (using adafrut drivers + kernel SPI interface)
-spi_sensor_chip_id = 0
 
 ### amount of time, in seconds, to wait between reads of the thermocouple
 sensor_time_wait = .5
