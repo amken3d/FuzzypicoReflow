@@ -9,6 +9,7 @@ try:
     import digitalio
     import board
     board_available = True
+    sensor_available = True #not sure about this
 except:
     print("Could not load Adafruit CircuitPython libraries")
     board_available = False
