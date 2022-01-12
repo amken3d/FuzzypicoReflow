@@ -4,9 +4,13 @@ Task list:
 - [x] Move to pigpio IO library (http://abyz.me.uk/rpi/pigpio/python.html)
 - [x] Added HW spi interface support (using pigpio)
 - [x] Added Thermocouple linearization calculations (see: https://learn.adafruit.com/calibrating-sensors/maxim-31855-linearization)
+
+4 years later, some new tasks:
+- [ ] Python3....
+- [ ] move from pigpio to Adafruit CircuitPython for max31855 and GPIOs
 - [ ] Implement a fuzzy control loop
 
-**In addition to the below instructiuons you need to have the pigpio daemon running in order to use this fork!**
+**In addition to the below instructiuons you need to install Adafruit's circuit python**
 
 From the Source ( https://github.com/apollo-ng/picoReflow ):
 
