@@ -64,11 +64,6 @@ except:
     log.warning(msg)
     gpio_available = False
 
-
-
-
-
-
 class Oven (threading.Thread):
     STATE_IDLE = "IDLE"
     STATE_RUNNING = "RUNNING"
@@ -254,6 +249,7 @@ class TempSensor(threading.Thread):
 class TempSensorReal(TempSensor):
     def __init__(self, time_step):
         TempSensor.__init__(self, time_step)
+        self.NISTFlag = False
         if config.max6675:
             log.info("init MAX6675")
             self.thermocouple = MAX6675(config.gpio_sensor_cs,
@@ -276,13 +272,17 @@ class TempSensorReal(TempSensor):
                     spi = board.SPI()
                     cs = digitalio.DigitalInOut(board.D5)
                     self.thermocouple = adafruit_max31855.MAX31855(spi, cs)
+                    self.NISTFlag = True
                 except Exception:
                     log.exception("problem initializing MAX31855")
 
     def run(self):
         while True:
             try:
-                self.temperature = self.thermocouple.temperature
+                if self.NISTFlag:
+                    self.temperature = self.thermocouple.temperature_NIST
+                else:
+                    self.temperature = self.thermocouple.temperature
             except Exception:
                 log.exception("problem reading temp")
             time.sleep(self.time_step)
