@@ -16,7 +16,7 @@ try:
     import config
     sys.dont_write_bytecode = False
 except:
-    print( "Could not import config file.")
+    print("Could not import config file.")
     print("Copy config.py.EXAMPLE to config.py and adapt it for your setup.")
     exit(1)
 
