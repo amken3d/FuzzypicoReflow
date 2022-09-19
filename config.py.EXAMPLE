@@ -85,6 +85,7 @@ pid_ki = 0.1  # Integration
 pid_kd = 0.4  # Derivative
 pid_kp = 0.5  # Proportional
 
+pid_previsioning = 0.0 # "Previsioning" time value in seconds
 
 ########################################################################
 #

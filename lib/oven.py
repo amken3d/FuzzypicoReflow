@@ -98,13 +98,17 @@ class Oven (threading.Thread):
         self.set_cool(False)
         self.set_air(False)
         self.pid = PID(ki=config.pid_ki, kd=config.pid_kd, kp=config.pid_kp)
+        self.previsioning = config.pid_previsioning
+
 
     def run_profile(self, profile):
         log.info("Running profile %s" % profile.name)
         self.profile = profile
         self.totaltime = profile.get_duration()
+        self.pid.ki_threshold = profile.ki_thershold
         self.state = Oven.STATE_RUNNING
         self.start_time = datetime.datetime.now()
+
         log.info("Starting")
 
     def abort_run(self):
@@ -124,7 +128,7 @@ class Oven (threading.Thread):
                     runtime_delta = datetime.datetime.now() - self.start_time
                     self.runtime = runtime_delta.total_seconds()
                 log.info("running at %.1f deg C (Target: %.1f) , heat %.2f, cool %.2f, air %.2f, door %s (%.1fs/%.0f)" % (self.temp_sensor.temperature, self.target, self.heat, self.cool, self.air, self.door, self.runtime, self.totaltime))
-                self.target = self.profile.get_target_temperature(self.runtime)
+                self.target = self.profile.get_target_temperature(self.runtime + self.previsioning)
                 pid = self.pid.compute(self.target, self.temp_sensor.temperature)
 
                 log.info("pid: %.3f" % pid)
@@ -344,6 +348,11 @@ class Profile():
         obj = json.loads(json_data)
         self.name = obj["name"]
         self.data = sorted(obj["data"])
+        try:
+            self.ki_thershold = obj["Ki_Threshold"]
+        except KeyError:
+            print("No Ki threshold set in profile, setting to 0")
+            self.ki_thershold = 0
 
     def get_duration(self):
         return max([t for (t, x) in self.data])
@@ -389,14 +398,20 @@ class PID():
         self.lastNow = datetime.datetime.now()
         self.iterm = 0
         self.lastErr = 0
+        self.ki_threshold = 0
 
     def compute(self, setpoint, ispoint):
         now = datetime.datetime.now()
         timeDelta = (now - self.lastNow).total_seconds()
 
         error = float(setpoint - ispoint)
-        self.iterm += (error * timeDelta * self.ki)
-        self.iterm = sorted([-1, self.iterm, 1])[1]
+
+        if setpoint > self.ki_threshold:
+            self.iterm += (error * timeDelta * self.ki)
+            self.iterm = sorted([-1, self.iterm, 1])[1]
+        else:
+            self.iterm = 0
+
         dErr = (error - self.lastErr) / timeDelta
 
         output = self.kp * error + self.iterm + self.kd * dErr
