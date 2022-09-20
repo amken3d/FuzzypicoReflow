@@ -1,16 +1,21 @@
 import threading
 import time
-#import random
 import datetime
 import logging
 import json
 import adafruit_max31855
+
 try:
     import digitalio
     import board
+
     board_available = True
-    sensor_available = True #not sure about this
-except:
+    sensor_available = True  # not sure about this
+except NotImplementedError:
+    print("Could not load board!")
+    board_available = False
+    sensor_available = False
+except ImportError:
     print("Could not load Adafruit CircuitPython libraries")
     board_available = False
     sensor_available = False
@@ -19,12 +24,14 @@ import config
 
 log = logging.getLogger(__name__)
 
+if config.max31855 + config.max6675 + config.Adafruit_CP_max31855 > 1:
+    log.error("choose (only) one converter IC")
+    exit()
+
 try:
-    if config.max31855 + config.max6675 + config.Adafruit_CP_max31855 > 1:
-        log.error("choose (only) one converter IC")
-        exit()
     if config.max31855:
         from max31855 import MAX31855, MAX31855Error
+
         log.info("import MAX31855")
     if config.Adafruit_CP_max31855:
         spi_reserved_gpio = [7, 8, 9, 10, 11]
@@ -38,6 +45,7 @@ try:
             raise Exception("gpio_heat pin %s collides with SPI pins %s" % (config.gpio_heat, spi_reserved_gpio))
     if config.max6675:
         from max6675 import MAX6675, MAX6675Error
+
         log.info("import MAX6675")
 
 except ImportError:
@@ -59,17 +67,30 @@ try:
     gpio_door.pull = digitalio.Pull.UP
 
     gpio_available = True
-except:
+except AttributeError:
     msg = "Could not initialize GPIOs, oven operation will only be simulated!"
     log.warning(msg)
     gpio_available = False
 
-class Oven (threading.Thread):
+
+class Oven(threading.Thread):
     STATE_IDLE = "IDLE"
     STATE_RUNNING = "RUNNING"
 
     def __init__(self, simulate=False, time_step=config.sensor_time_wait):
         threading.Thread.__init__(self)
+        self.air = 0
+        self.heat = 0
+        self.cool = 0
+        self.previsioning = 0
+        self.pid = None
+        self.state = Oven.STATE_IDLE
+        self.target = 0
+        self.totaltime = 0
+        self.start_time = None
+        self.runtime = 0
+        self.profile = None
+        self.door = "UNKNOWN"
         self.daemon = True
         self.simulate = simulate
         self.time_step = time_step
@@ -100,7 +121,6 @@ class Oven (threading.Thread):
         self.pid = PID(ki=config.pid_ki, kd=config.pid_kd, kp=config.pid_kp)
         self.previsioning = config.pid_previsioning
 
-
     def run_profile(self, profile):
         log.info("Running profile %s" % profile.name)
         self.profile = profile
@@ -127,14 +147,18 @@ class Oven (threading.Thread):
                 else:
                     runtime_delta = datetime.datetime.now() - self.start_time
                     self.runtime = runtime_delta.total_seconds()
-                log.info("running at %.1f deg C (Target: %.1f) , heat %.2f, cool %.2f, air %.2f, door %s (%.1fs/%.0f)" % (self.temp_sensor.temperature, self.target, self.heat, self.cool, self.air, self.door, self.runtime, self.totaltime))
+                log.info(
+                    "running at %.1f deg C (Target: %.1f) , heat %.2f, cool %.2f, air %.2f, door %s (%.1fs/%.0f)" % (
+                        self.temp_sensor.temperature, self.target, self.heat, self.cool, self.air, self.door,
+                        self.runtime,
+                        self.totaltime))
                 self.target = self.profile.get_target_temperature(self.runtime + self.previsioning)
                 pid = self.pid.compute(self.target, self.temp_sensor.temperature)
 
                 log.info("pid: %.3f" % pid)
 
                 self.set_cool(pid <= -1)
-                if(pid > 0):
+                if pid > 0:
                     # The temp should be changing with the heat on
                     # Count the number of time_steps encountered with no change and the heat on
                     if last_temp == self.temp_sensor.temperature:
@@ -150,27 +174,26 @@ class Oven (threading.Thread):
                 else:
                     temperature_count = 0
 
-                #Capture the last temperature value.  This must be done before set_heat, since there is a sleep in there now.
+                # Capture the last temperature value.  This must be done before set_heat, since there is a sleep in
+                # there now.
                 last_temp = self.temp_sensor.temperature
-                
-                self.set_heat(pid)
-                
 
-                #if self.profile.is_rising(self.runtime):
-                #    self.set_cool(False)
-                #    self.set_heat(self.temp_sensor.temperature < self.target)
-                #else:
-                #    self.set_heat(False)
-                #    self.set_cool(self.temp_sensor.temperature > self.target)
+                self.set_heat(pid)
+
+                # if self.profile.is_rising(self.runtime):
+                #     self.set_cool(False)
+                #     self.set_heat(self.temp_sensor.temperature < self.target)
+                # else:
+                #     self.set_heat(False)
+                #     self.set_cool(self.temp_sensor.temperature > self.target)
 
                 if self.temp_sensor.temperature > 200:
                     self.set_air(False)
                 elif self.temp_sensor.temperature < 180:
                     self.set_air(True)
 
-                if self.runtime >= self.totaltime:
+                if (self.runtime + self.previsioning) >= self.totaltime:
                     self.reset()
-
 
             if pid > 0:
                 if self.simulate:
@@ -184,22 +207,22 @@ class Oven (threading.Thread):
         if value > 0:
             self.heat = 1.0
             if gpio_available:
-               if config.heater_invert:
-                 gpio_heat.value = False
-                 time.sleep(self.time_step * value)
-                 gpio_heat.value = True
-               else:
-                   gpio_heat.value = True
-                   time.sleep(self.time_step * value)
-                   gpio_heat.value = False
+                if config.heater_invert:
+                    gpio_heat.value = False
+                    time.sleep(self.time_step * value)
+                    gpio_heat.value = True
+                else:
+                    gpio_heat.value = True
+                    time.sleep(self.time_step * value)
+                    gpio_heat.value = False
 
         else:
             self.heat = 0.0
             if gpio_available:
-               if config.heater_invert:
-                   gpio_heat.value = True
-               else:
-                   gpio_heat.value = False
+                if config.heater_invert:
+                    gpio_heat.value = True
+                else:
+                    gpio_heat.value = False
 
     def set_cool(self, value):
         if value:
@@ -257,20 +280,20 @@ class TempSensorReal(TempSensor):
         if config.max6675:
             log.info("init MAX6675")
             self.thermocouple = MAX6675(config.gpio_sensor_cs,
-                                     config.gpio_sensor_clock,
-                                     config.gpio_sensor_data,
-                                     config.temp_scale)
+                                        config.gpio_sensor_clock,
+                                        config.gpio_sensor_data,
+                                        config.temp_scale)
 
         if config.max31855:
             log.info("init MAX31855")
             self.thermocouple = MAX31855(config.gpio_sensor_cs,
-                                     config.gpio_sensor_clock,
-                                     config.gpio_sensor_data,
-                                     config.spi_hw_channel,
-                                     config.temp_scale)
+                                         config.gpio_sensor_clock,
+                                         config.gpio_sensor_data,
+                                         config.spi_hw_channel,
+                                         config.temp_scale)
 
         if config.Adafruit_CP_max31855:
-            if board_available :
+            if board_available:
                 log.info("init Adafruit CircuitPython MAX31855")
                 try:
                     spi = board.SPI()
@@ -299,22 +322,22 @@ class TempSensorSimulate(TempSensor):
         self.sleep_time = sleep_time
 
     def run(self):
-        t_env      = config.sim_t_env
-        c_heat     = config.sim_c_heat
-        c_oven     = config.sim_c_oven
-        p_heat     = config.sim_p_heat
+        t_env = config.sim_t_env
+        c_heat = config.sim_c_heat
+        c_oven = config.sim_c_oven
+        p_heat = config.sim_p_heat
         R_o_nocool = config.sim_R_o_nocool
-        R_o_cool   = config.sim_R_o_cool
+        R_o_cool = config.sim_R_o_cool
         R_ho_noair = config.sim_R_ho_noair
-        R_ho_air   = config.sim_R_ho_air
+        R_ho_air = config.sim_R_ho_air
 
         t = t_env  # deg C  temp in oven
-        t_h = t    # deg C temp of heat element
+        t_h = t  # deg C temp of heat element
         while True:
-            #heating energy
+            # heating energy
             Q_h = p_heat * self.time_step * self.oven.heat
 
-            #temperature change of heat element by heating
+            # temperature change of heat element by heating
             t_h += Q_h / c_heat
 
             if self.oven.air:
@@ -322,28 +345,29 @@ class TempSensorSimulate(TempSensor):
             else:
                 R_ho = R_ho_noair
 
-            #energy flux heat_el -> oven
+            # energy flux heat_el -> oven
             p_ho = (t_h - t) / R_ho
 
-            #temperature change of oven and heat el
-            t   += p_ho * self.time_step / c_oven
+            # temperature change of oven and heat el
+            t += p_ho * self.time_step / c_oven
             t_h -= p_ho * self.time_step / c_heat
 
-            #energy flux oven -> env
+            # energy flux oven -> env
             if self.oven.cool:
                 p_env = (t - t_env) / R_o_cool
             else:
                 p_env = (t - t_env) / R_o_nocool
 
-            #temperature change of oven by cooling to env
+            # temperature change of oven by cooling to env
             t -= p_env * self.time_step / c_oven
-            log.debug("energy sim: -> %dW heater: %.0f -> %dW oven: %.0f -> %dW env" % (int(p_heat * self.oven.heat), t_h, int(p_ho), t, int(p_env)))
+            log.debug("energy sim: -> %dW heater: %.0f -> %dW oven: %.0f -> %dW env" % (
+                int(p_heat * self.oven.heat), t_h, int(p_ho), t, int(p_env)))
             self.temperature = t
 
             time.sleep(self.sleep_time)
 
 
-class Profile():
+class Profile:
     def __init__(self, json_data):
         obj = json.loads(json_data)
         self.name = obj["name"]
@@ -357,40 +381,40 @@ class Profile():
     def get_duration(self):
         return max([t for (t, x) in self.data])
 
-    def get_surrounding_points(self, time):
-        if time > self.get_duration():
-            return (None, None)
+    def get_surrounding_points(self, timenow):
+        if timenow > self.get_duration():
+            return None, None
 
         prev_point = None
         next_point = None
 
         for i in range(len(self.data)):
-            if time < self.data[i][0]:
-                prev_point = self.data[i-1]
+            if timenow < self.data[i][0]:
+                prev_point = self.data[i - 1]
                 next_point = self.data[i]
                 break
 
-        return (prev_point, next_point)
+        return prev_point, next_point
 
-    def is_rising(self, time):
-        (prev_point, next_point) = self.get_surrounding_points(time)
+    def is_rising(self, timenow):
+        (prev_point, next_point) = self.get_surrounding_points(timenow)
         if prev_point and next_point:
             return prev_point[1] < next_point[1]
         else:
             return False
 
-    def get_target_temperature(self, time):
-        if time >= self.get_duration():
+    def get_target_temperature(self, timenow):
+        if timenow >= self.get_duration():
             return 0
 
-        (prev_point, next_point) = self.get_surrounding_points(time)
+        (prev_point, next_point) = self.get_surrounding_points(timenow)
 
         incl = float(next_point[1] - prev_point[1]) / float(next_point[0] - prev_point[0])
-        temp = prev_point[1] + (time - prev_point[0]) * incl
+        temp = prev_point[1] + (timenow - prev_point[0]) * incl
         return temp
 
 
-class PID():
+class PID:
     def __init__(self, ki=1, kp=1, kd=1):
         self.ki = ki
         self.kp = kp
