@@ -421,6 +421,7 @@ class PID:
         self.kd = kd
         self.lastNow = datetime.datetime.now()
         self.iterm = 0
+        self.ierror = 0
         self.lastErr = 0
         self.ki_threshold = 0
 
@@ -429,10 +430,11 @@ class PID:
         timeDelta = (now - self.lastNow).total_seconds()
 
         error = float(setpoint - ispoint)
-
+        self.ierror += (error * timeDelta)
+        
        # if setpoint > self.ki_threshold:
-        if abs(error) <= 2:
-            self.iterm += (error * timeDelta * self.ki)
+        if setpoint > 190:
+            self.iterm = (self.ierror * self.ki)
             self.iterm = sorted([-1, self.iterm, 1])[1]
         else:
             self.iterm = 0
