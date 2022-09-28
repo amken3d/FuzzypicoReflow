@@ -430,7 +430,8 @@ class PID:
 
         error = float(setpoint - ispoint)
 
-        if setpoint > self.ki_threshold:
+       # if setpoint > self.ki_threshold:
+        if abs(error) <= 2:
             self.iterm += (error * timeDelta * self.ki)
             self.iterm = sorted([-1, self.iterm, 1])[1]
         else:
