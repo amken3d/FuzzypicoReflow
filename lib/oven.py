@@ -4,6 +4,7 @@ import datetime
 import logging
 import json
 import adafruit_max31855
+import adafruit_max31865
 
 try:
     import digitalio
@@ -302,6 +303,16 @@ class TempSensorReal(TempSensor):
                     self.NISTFlag = True
                 except Exception:
                     log.exception("problem initializing MAX31855")
+
+        if config.Adafruit_CP_max31865:
+            if board_available:
+                log.info("init Adafruit CircuitPython MAX31865")
+                try:
+                    spi = board.SPI()
+                    cs = digitalio.DigitalInOut(config.max31865_cs)
+                    self.thermocouple = adafruit_max31865.MAX31855(spi, cs, rtd_nominal=100, ref_resistor=430.0, wires=3)
+                except Exception:
+                    log.exception("problem initializing MAX31865")
 
     def run(self):
         while True:
