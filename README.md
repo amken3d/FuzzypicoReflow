@@ -7,8 +7,9 @@ environmental agitators (heating/cooling) you can use it as inspiration / basis
 when you're in need of a PID based temperature controller for your project.
 Don't forget to share and drop a link, when you do :)
 
-Based on the original work of apollo-ng and nightmechanic's FuzzypicoReflow fork
-Added support for Max31865 PT200 RTD Thermocouple amplifier for very reliable and fast temprature measurements.
+Based on the original work of apollo-ng and nightmechanic's FuzzypicoReflow fork.
+Added support for Max31865 PT200 RTD Thermocouple amplifier for extremely  reliable and fast temperature measurements.
+
 **Standard Interface**
 
 ![Image](https://apollo.open-resource.org/_media/mission:resources:picoreflow_webinterface.jpg)
