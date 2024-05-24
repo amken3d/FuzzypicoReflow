@@ -25,7 +25,7 @@ import config
 
 log = logging.getLogger(__name__)
 
-if config.max31855 + config.max6675 + config.Adafruit_CP_max31855 > 1:
+if config.max31855 + config.max6675 + config.Adafruit_CP_max31855 + config.Adafruit_CP_max31865> 1:
     log.error("choose (only) one converter IC")
     exit()
 
