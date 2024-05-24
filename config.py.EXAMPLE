@@ -32,14 +32,14 @@ currency_type   = "USD"   # Currency Symbol to show when calculating cost to run
 #   can use whichever GPIO you prefer/have available.
 
 ### Outputs
-gpio_heat = 25  # Switches zero-cross solid-state-relay
-gpio_cool = 24  # Regulates PWM for 12V DC Blower
-gpio_air  = 23  # Switches 0-phase det. solid-state-relay
+gpio_heat = 20  # Switches zero-cross solid-state-relay
+gpio_cool = 26  # Regulates PWM for 12V DC Blower
+gpio_air  = 24  # Switches 0-phase det. solid-state-relay
 
 if board_loaded :
-    CP_gpio_heat = board.D25  # Switches zero-cross solid-state-relay
-    CP_gpio_cool = board.D24  # Regulates PWM for 12V DC Blower
-    CP_gpio_air  = board.D23  # Switches 0-phase det. solid-state-relay
+    CP_gpio_heat = board.D20  # Switches zero-cross solid-state-relay
+    CP_gpio_cool = board.D26  # Regulates PWM for 12V DC Blower
+    CP_gpio_air  = board.D24  # Switches 0-phase det. solid-state-relay
 
 heater_invert = 0 # switches the polarity of the heater control
 
