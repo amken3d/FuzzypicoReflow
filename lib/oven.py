@@ -3,6 +3,7 @@ import time
 import datetime
 import logging
 import json
+import digitalio
 import adafruit_max31855
 import adafruit_max31865
 
@@ -310,7 +311,7 @@ class TempSensorReal(TempSensor):
                 try:
                     spi = board.SPI()
                     cs = digitalio.DigitalInOut(config.max31865_cs)
-                    self.thermocouple = adafruit_max31865.MAX31855(spi, cs, rtd_nominal=100, ref_resistor=430.0, wires=3)
+                    self.thermocouple = adafruit_max31865.MAX31865(spi, cs, rtd_nominal=100, ref_resistor=430.0, wires=3)
                 except Exception:
                     log.exception("problem initializing MAX31865")
 
