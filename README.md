@@ -1,20 +1,4 @@
-Note: This is a picoReflow fork, intended for a "headless" RPi.
-
-Task list:
-- [x] Move to pigpio IO library (http://abyz.me.uk/rpi/pigpio/python.html)
-- [x] Added HW spi interface support (using pigpio)
-- [x] Added Thermocouple linearization calculations (see: https://learn.adafruit.com/calibrating-sensors/maxim-31855-linearization)
-
-4 years later, some new tasks:
-- [x] Python3....
-- [ ] move from pigpio to Adafruit Blinka/CircuitPython for max31855 and GPIOs
-- [ ] Implement a fuzzy control loop
-
-**In addition to the below instructiuons you need to install Adafruit's circuit python**
-
-From the Source ( https://github.com/apollo-ng/picoReflow ):
-
-picoReflow
+FuzzyPicoReflow
 ==========
 
 Turns a Raspberry Pi into a cheap, universal & web-enabled Reflow Oven Controller.
@@ -23,6 +7,8 @@ environmental agitators (heating/cooling) you can use it as inspiration / basis
 when you're in need of a PID based temperature controller for your project.
 Don't forget to share and drop a link, when you do :)
 
+Based on the original work of apollo-ng and nightmechanic's FuzzypicoReflow fork
+Added support for Max31865 PT200 RTD Thermocouple amplifier for very reliable and fast temprature measurements.
 **Standard Interface**
 
 ![Image](https://apollo.open-resource.org/_media/mission:resources:picoreflow_webinterface.jpg)
@@ -33,8 +19,9 @@ Don't forget to share and drop a link, when you do :)
 
 ## Hardware
 
-  * Raspberry Pi (Rev 2B, Zero W)
+  * Raspberry Pi (Rev 2B, Zero W, Zero 2W)
   * MAX 31855/6675 Cold-Junction K-Type Thermocouple
+  * MAX 31865 PT100 RTD thermocouple amplifier
   * GPIO driven Solid-State-Relays/MOSFETs
 
 ## Installation
@@ -82,12 +69,12 @@ RPi.GPIO with the default installation.
 
 If you also want to use the in-kernel SPI drivers with a MAX31855 sensor:
 
-    $ sudo pip3 install Adafruit-MAX31855
+    $ sudo pip3 install Adafruit-MAX31855 install Adafruit-MAX31856
 
 ### Clone repo
 
-    $ git clone https://github.com/apollo-ng/picoReflow.git
-    $ cd picoReflow
+    $ git clone https://github.com/amken3d/FuzzypicoReflow.git
+    $ cd FuzzypicoReflow
 
 ## Configuration
 
@@ -104,7 +91,7 @@ All parameters are defined in config.py, just copy the example and review/change
 ### Autostart Server onBoot
 If you want the server to autostart on boot, run the following commands
 
-    sudo cp /home/pi/picoReflow/lib/init/reflow /etc/init.d/
+    sudo cp /home/<change to your home dir>/FuzzypicoReflow/lib/init/reflow /etc/init.d/
     sudo chmod +x /etc/init.d/reflow
     sudo update-rc.d reflow defaults
 
